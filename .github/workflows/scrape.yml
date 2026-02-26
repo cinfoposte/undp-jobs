@@ -2,8 +2,7 @@ name: Scrape UNDP Jobs
 
 on:
   schedule:
-    # Thursday + Sunday at 06:00 UTC
-    - cron: '0 6 * * 0,4'
+    - cron: '15 6 * * *'   # Daily at 06:15 UTC
   workflow_dispatch:
 
 permissions:
@@ -24,12 +23,37 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run scraper
-        run: python scraper.py
+      - name: Run scraper (capture exit code)
+        id: scraper
+        run: |
+          set +e
+          python scraper.py
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
 
-      - name: Commit & push if changed
+      - name: Validate XML
+        if: always()
+        run: python -c "import xml.etree.ElementTree as ET; ET.parse('undp_jobs.xml'); print('XML is well-formed')"
+
+      - name: Commit and push if changed
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add undp_jobs.xml
-          git diff --cached --quiet || (git commit -m "Update UNDP jobs feed" && git push)
+          if ! git diff --cached --quiet; then
+            git commit -m "Update UNDP jobs feed"
+            git push
+            echo "Committed and pushed updated feed."
+          else
+            echo "No changes to undp_jobs.xml, skipping commit."
+          fi
+
+      - name: Fail if scraper exited non-zero
+        if: always()
+        run: |
+          code="${{ steps.scraper.outputs.exit_code }}"
+          if [ "$code" != "0" ]; then
+            echo "Scraper exited with code $code — marking job as failed."
+            exit "$code"
+          fi

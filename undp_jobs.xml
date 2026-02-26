@@ -1,12 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>UNDP Job Vacancies</title>
+    <title>UNDP Jobs (filtered: D/P only)</title>
     <link>https://jobs.undp.org/cj_view_jobs.cfm</link>
-    <description>List of vacancies at UNDP</description>
+    <description>Only D1–D2 and P1–P6 jobs. Everything else excluded.</description>
     <language>en</language>
-    <atom:link href="https://cinfoposte.github.io/undp-jobs/undp_jobs.xml" rel="self" type="application/rss+xml"/>
-    <pubDate>Thu, 26 Feb 2026 08:04:07 +0000</pubDate>
-
+    <lastBuildDate>Thu, 26 Feb 2026 18:04:53 +0000</lastBuildDate>
+    <atom:link href="https://cinfoposte.github.io/undp-jobs/undp_jobs.xml" rel="self" type="application/rss+xml" />
   </channel>
 </rss>
