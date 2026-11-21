@@ -105,12 +105,14 @@ _RE_P = re.compile(r"\bP\s*[-]?\s*([1-6])\b")
 
 # Exclusion patterns (belt-and-suspenders)
 _EXCLUDE_STRINGS = ["IPSA", "NPSA"]
-_EXCLUDE_KEYWORDS = ["INTERN", "INTERNSHIP", "FELLOW", "FELLOWSHIP",
-                     "CONSULTANT", "CONSULTANCY"]
-_RE_NO = re.compile(r"\bNO\s*[-]?\s*[A-D]\b")
-_RE_G = re.compile(r"\bG\s*[-]?\s*[1-7]\b")
-_EXCLUDE_PREFIXES = ["SB-", "LSC-"]
-
+ 
+_EXCLUDE_KEYWORDS = [
+    "INTERNSHIP",
+    "FELLOW",
+    "FELLOWSHIP",
+    "CONSULTANT",
+    "CONSULTANCY"
+]
 
 def detect_level(text: str) -> str:
     """
@@ -128,22 +130,19 @@ def detect_level(text: str) -> str:
 
 
 def is_excluded(norm_text: str) -> bool:
-    """Return True if text trips the exclusion belt."""
+    """Exclude internships, fellowships, consultancies, and national PSA contracts."""
+    if re.search(r"\bINTERNS?\b", norm_text):
+        return True
+
     for s in _EXCLUDE_STRINGS:
         if s in norm_text:
             return True
+
     for kw in _EXCLUDE_KEYWORDS:
         if kw in norm_text:
             return True
-    if _RE_NO.search(norm_text):
-        return True
-    if _RE_G.search(norm_text):
-        return True
-    for pref in _EXCLUDE_PREFIXES:
-        if pref in norm_text:
-            return True
-    return False
 
+    return False
 
 def should_include(text: str) -> tuple[bool, str]:
     """
@@ -448,6 +447,11 @@ def main() -> None:
         else:
             excluded_count += 1
 
+    # Avoid replacing the last working RSS with an empty feed when scraping fails.
+    if not included and FAIL_IF_ZERO_ITEMS:
+        print("[ERROR] No matching UNDP vacancies found. Preserving previous RSS file.")
+        sys.exit(2)
+
     # Step 5: Generate RSS
     rss_xml = build_rss(included)
 
@@ -479,9 +483,6 @@ def main() -> None:
 
     if len(included) == 0:
         print("\n[WARN] Zero D/P items found.")
-        if FAIL_IF_ZERO_ITEMS:
-            print("[INFO] RSS file was written (valid skeleton). Exiting with code 2.")
-            sys.exit(2)
 
     print("\nDone.")
     sys.exit(0)
