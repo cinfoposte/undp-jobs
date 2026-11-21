@@ -185,23 +185,26 @@ def extract_job_links_and_pagination(html: str, page_url: str):
             continue
         job_url = urljoin(page_url, href)
 
-        # Best available text
+        # The clickable job card normally contains its own title, post level,
+        # deadline, agency and location. Keep that card's text rather than a
+        # larger parent container that can mix multiple vacancies together.
+        # A parent may contain internship/consultancy keywords from *other*
+        # vacancies, causing every P/D vacancy to be wrongly excluded.
         anchor_text = a.get_text(" ", strip=True)
-
-        # Try parent elements for richer text
-        parent_text = ""
-        for parent_tag in ["tr", "li", "div"]:
-            parent = a.find_parent(parent_tag)
-            if parent:
-                candidate = parent.get_text(" ", strip=True)
-                if candidate and len(candidate) > len(parent_text):
-                    parent_text = candidate[:800]
-                    break
-
-        # Choose longest non-empty text
         text_blob = anchor_text
-        if parent_text and len(parent_text) > len(text_blob):
-            text_blob = parent_text
+
+        # Fallback for sites where only the title is inside the link. Accept
+        # only a compact parent that itself contains a post-level field; never
+        # use an entire jobs section as the text of an individual vacancy.
+        if not re.search(r"\bPOST\s+LEVEL\b", anchor_text, re.I):
+            for parent_tag in ("tr", "li", "div"):
+                parent = a.find_parent(parent_tag)
+                if parent:
+                    candidate = parent.get_text(" ", strip=True)
+                    if (len(candidate) <= 600 and
+                            re.search(r"\bPOST\s+LEVEL\b", candidate, re.I)):
+                        text_blob = candidate
+                        break
 
         if job_url not in job_links:
             job_links[job_url] = text_blob
@@ -432,20 +435,43 @@ def main() -> None:
     # Step 3: Filter for D/P levels
     included: list[dict] = []
     excluded_count = 0
+    no_grade_count = 0
+    excluded_by_keyword_count = 0
+    other_agency_count = 0
     for job_url, text_blob in raw_jobs.items():
-        inc, level = should_include(text_blob)
-        if inc:
-            fields = parse_fields(text_blob)
-            included.append({
-                "job_url": job_url,
-                "level": level,
-                "title": fields["title"],
-                "apply_by": fields["apply_by"],
-                "agency": fields["agency"],
-                "location": fields["location"],
-            })
-        else:
+        level = detect_level(text_blob)
+        if not level:
+            no_grade_count += 1
             excluded_count += 1
+            continue
+        if is_excluded(normalize_text(text_blob)):
+            excluded_by_keyword_count += 1
+            excluded_count += 1
+            continue
+        fields = parse_fields(text_blob)
+        # The UNDP careers page also carries vacancies for UNV and UNOCHA.
+        if fields["agency"] and fields["agency"].strip().upper() != "UNDP":
+            other_agency_count += 1
+            excluded_count += 1
+            continue
+        included.append({
+            "job_url": job_url,
+            "level": level,
+            "title": fields["title"],
+            "apply_by": fields["apply_by"],
+            "agency": fields["agency"],
+            "location": fields["location"],
+        })
+
+    print(f"  Raw unique job links collected: {len(raw_jobs)}")
+    print(f"  No P/D grade detected: {no_grade_count}")
+    print(f"  Excluded by keyword: {excluded_by_keyword_count}")
+    print(f"  Other agency: {other_agency_count}")
+    print(f"  Included UNDP D/P items: {len(included)}")
+    if not included:
+        print("  Sample job text for debugging:")
+        for jurl, jtxt in list(raw_jobs.items())[:5]:
+            print(f"    {jurl} | {jtxt[:280]}")
 
     # Avoid replacing the last working RSS with an empty feed when scraping fails.
     if not included and FAIL_IF_ZERO_ITEMS:
